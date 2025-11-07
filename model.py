@@ -197,9 +197,12 @@ class HourGlass_2(nn.Module):
 
 class FAN(nn.Module):
 
-    def __init__(self, config, inplanes, outplanes, bn=False):
+    def __init__(self, config, inplanes, outplanes, bn=False, num_classes=2, task_type='classification'):
         super(FAN, self).__init__()
         self.bn = bn
+        self.task_type = task_type  # 'classification' or 'regression'
+        self.num_classes = num_classes
+        
         if bn:
             self.bn = nn.BatchNorm2d(inplanes)
 
@@ -213,8 +216,23 @@ class FAN(nn.Module):
         self.conv4_3 = HourGlass(config, 4, 256)
         self.conv4_4 = HourGlass(config, 4, 256)
         self.conv5 = ConvBlock(256, 128)
-        self.conv6 = conv3x3(128, outplanes)
         self.Upsample = Upsample(128, 128)
+        
+        if self.task_type == 'classification':
+            # Classification head for facial paralysis detection and grading
+            self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+            self.classifier = nn.Sequential(
+                nn.Linear(128, 256),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.5),
+                nn.Linear(256, 128),
+                nn.ReLU(inplace=True),
+                nn.Dropout(0.3),
+                nn.Linear(128, num_classes)
+            )
+        else:
+            # Original landmark detection head
+            self.conv6 = conv3x3(128, outplanes)
 
     def forward(self, x):
 
@@ -237,6 +255,14 @@ class FAN(nn.Module):
 
         x = self.conv5(x)
         x = self.Upsample(x)
-        out = self.conv6(x)
+        
+        if self.task_type == 'classification':
+            # Classification path
+            features = self.global_pool(x)
+            features = features.view(features.size(0), -1)
+            out = self.classifier(features)
+        else:
+            # Original landmark detection path
+            out = self.conv6(x)
 
         return out, mask

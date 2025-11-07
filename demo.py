@@ -10,7 +10,7 @@ config = get_CTranS_config()
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 checkpoint = './checkpoint/result.tar'
-model = FAN(config, 3, 81)
+model = FAN(config, 3, 81, task_type='regression')
 state_dict = torch.load(checkpoint, map_location=lambda storage, loc: storage)
 model.load_state_dict(state_dict, False)
 model.eval()
